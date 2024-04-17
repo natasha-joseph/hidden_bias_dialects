@@ -1,4 +1,5 @@
-Following is an example instance for the task: [task_description]. Please come up with [num_shot] new diverse, and creative instances for the task using the same dialects given Standard American English, African American English, and Southern American English.
+Following is an example instance for the task: {task_description}. Please come up with {num_shot} new diverse, and creative instances for the task using the same dialects given Standard American English and African American English.
+Do not add any notes to the new examples.
 
 Example instance:
 S: [test_input]
