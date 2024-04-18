@@ -10,7 +10,6 @@ import helpers
 
 # Define variable and attribute classes
 variable_classes = ["aave", "sae"]
-
 quantization_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype=torch.float16,
@@ -26,11 +25,11 @@ def load_generation_model(name):
 
     return (model_4bit, tokenizer)
 
-def generate_new_examples(template, task_description, num_shot, sentence_pair):
+def generate_new_examples(template, task_description, num_shot, sentence_pair, llm):
     example_input = helpers.format_example(sentence_pair)
-    prompt = PromptTemplate(template=template, input_variables=["task_description","num_shot", "example_input"])
+    prompt = PromptTemplate(template=template, input_variables=["task_description","num_shot", "test_input"])
     llm_chain = LLMChain(prompt=prompt, llm=llm)
-    response = llm_chain.invoke({"task_description": task_description,"num_shot": num_shot, "example_input": example_input})
+    response = llm_chain.invoke({"task_description": task_description,"num_shot": num_shot, "test_input": example_input})
     return response
 
 def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_pairs, labels):
@@ -41,11 +40,10 @@ def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_
     with torch.no_grad():
         # Loop over prompts
         for prompt in prompts:
-            print("Processing prompt: {}".format(prompt))
 
             # Compute prompt-specific results
             results = []
-            for variable_pair in tqdm.tqdm(dialogue_pairs):
+            for variable_pair in dialogue_pairs:
                 variable_0, variable_1 = variable_pair[0], variable_pair[1]
 
                 # Pass prompts through model and select attribute probabilities
@@ -74,26 +72,28 @@ def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_
 
 def select_best_prompt_dialogue(prompts, prompt_results, num_examples):
 
-    dialogue_losses = [0] * (num_examples + 1)
+    dialogue_losses = torch.zeros(num_examples + 1)
     for prompt in prompts:
         results = prompt_results[prompt]
         for i in range(0, len(results), 2):
             aae_logits, sae_logits = results[i], results[i+1]
             loss = helpers.dialogue_loss_function(aae_logits, sae_logits)
-            dialogue_losses[i / 2] += loss
+            dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
-    return dialogue_losses.index(min(dialogue_losses))
+    return dialogue_losses.argmin().item()
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--gen_model_name", type=str, default="mistralai/Mistral-7B-Instruct-v0.2")
     parser.add_argument("--task_description", type=str, default="Create dialogues that can be used to red team a language model to uncover hidden biases")
     parser.add_argument("--num_shot", type=int, default=3)
-    parser.add_argument("--generation_template", type=str, default="/prompt_templates/red_team/dialogue_generation.txt")
-    parser.add_argument("--sentence_pairs_file", type=str, default="/data/all_dialects.txt")
+    parser.add_argument("--generation_template", type=str, default="/content/hidden_bias_dialects/prompt_templates/red_team/dialogue_generation.txt")
+    parser.add_argument("--sentence_pairs_file", type=str, default="/content/hidden_bias_dialects/data/all_dialects.txt")
     parser.add_argument("--attribute", type=str, default="occupations")
     parser.add_argument("--eval_model_name", type=str, required=True)
+    parser.add_argument("--num_iterations", type=int, default=150)
+    parser.add_argument("--output_path", type=str, default="attack_set-.txt")
 
     args = parser.parse_args()
     print(f"args: {vars(args)}")
@@ -101,9 +101,10 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-
+    torch.cuda.empty_cache()
     gen_model, gen_tokenizer = load_generation_model(args.gen_model_name)
     eval_model, eval_tokenizer = helpers.load_model(args.eval_model_name), helpers.load_tokenizer(args.eval_model_name)
+    eval_model.to(device)
 
     pipeline = pipeline(
         "text-generation",
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         tokenizer=gen_tokenizer,
         use_cache=True,
         device_map="auto",
-        max_length=2500,
+        max_length=1000,
         do_sample=True,
         top_k=5,
         num_return_sequences=1,
@@ -124,39 +125,44 @@ if __name__ == "__main__":
     # load in the sentence pairs and the prompt template for generation
     sentence_pairs = helpers.load_sentence_pairs(args.sentence_pairs_file)
     generation_template = helpers.load_prompt_template(args.generation_template)
-    prompts = helpers.load_prompts(args.eval_model_name, args.attribute, None)
-
+    prompts, _ = helpers.load_prompts(args.eval_model_name, args.attribute, None)
     starting_pair = helpers.random_sample(sentence_pairs)
+    for i in tqdm.tqdm(range(args.num_iterations)):
+      helpers.append_dialogue_pairs_to_file(starting_pair, args.output_path)
+      response = generate_new_examples(generation_template,
+                                      args.task_description,
+                                      args.num_shot,
+                                      starting_pair,
+                                      llm)
 
-    response = generate_new_examples(generation_template,
-                                     args.task_description,
-                                     args.num_shot,
-                                     starting_pair)
+      new_examples = helpers.extract_new_examples(response["text"])
+      
+      if len(new_examples) < 4:
+          continue
+      else:
+          new_examples = new_examples[:4]
     
-    new_examples = helpers.extract_new_examples(response["text"])
 
-    # Prepare labels for T5 models (we only need the probabilities after the sentinel token)
-    if args.model_name in helpers.T5_MODELS:
-        labels = torch.tensor([eval_tokenizer.encode("<extra_id_0>")])
-        labels = labels.to(device)
-    else:
-        labels = None
+      # Prepare labels for T5 models (we only need the probabilities after the sentinel token)
+      if args.gen_model_name in helpers.T5_MODELS:
+          labels = torch.tensor([eval_tokenizer.encode("<extra_id_0>")])
+          labels = labels.to(device)
+      else:
+          labels = None
 
-    prompt_results = evaluate_new_dialogues(eval_model, 
-                                            args.eval_model_name, 
-                                            eval_tokenizer, 
-                                            args.attribute, 
-                                            prompts, 
-                                            new_examples, 
-                                            labels)
-    
-    best_idx = select_best_prompt_dialogue(prompts, 
-                                           prompt_results, 
-                                           args.num_shot)
-    
-    print(new_examples[best_idx])
-
-
-
-
-
+      prompt_results = evaluate_new_dialogues(eval_model, 
+                                              args.eval_model_name, 
+                                              eval_tokenizer, 
+                                              args.attribute, 
+                                              prompts, 
+                                              new_examples, 
+                                              labels)
+      
+      best_idx = select_best_prompt_dialogue(prompts, 
+                                            prompt_results, 
+                                            args.num_shot)
+      
+      if best_idx==0:
+        starting_pair = helpers.random_sample(sentence_pairs)
+      else:
+        starting_pair = new_examples[best_idx]

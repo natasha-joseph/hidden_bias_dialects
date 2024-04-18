@@ -14,7 +14,7 @@ from transformers import (
 )
 
 import prompting
-random.seed(11711)
+random.seed(383)
 
 # Define path to attribute lists
 ATTRIBUTES_PATH = os.path.abspath("../data/attributes/{}.txt")
@@ -85,7 +85,6 @@ def load_prompts(model_name, attribute, variable):
 
 # read in the prompt template to a string
 def load_prompt_template(file_path):
-    file_path = "prompt_template.txt"
 
     with open(file_path, "r") as file:
         prompt_template = file.read()
@@ -132,7 +131,7 @@ def compute_probs(model, model_name, input_ids, labels):
         output = model(input_ids=input_ids)
         probs = F.softmax(output.logits, dim=-1)[0][-2]
     elif model_name in T5_MODELS:
-        output = model(input_ids=input_ids, labels=labels)
+        output = model(input_ids=input_ids, labels=labels, decoder_input_ids=input_ids)
         probs = F.softmax(output.logits, dim=-1)[0][-1] 
     else:
         raise ValueError(f"Model {model_name} not supported.")
@@ -193,3 +192,23 @@ def dialogue_loss_function(aae_info, sae_info):
     
     # Calculate the mean of the combined loss
     return combined_loss
+
+def write_dialogue_pairs_to_file(pairs_list, file_path):
+    """
+    Write a list of dialogue pairs to a file with pairs separated by tabs on the same line.
+
+    Args:
+        pairs_list (list): A list of dialogue pairs.
+        file_path (str): The path to the file where the dialogue pairs will be written.
+    """
+    try:
+        # Open the file in write mode
+        with open(file_path, 'w') as file:
+            # Write each dialogue pair to the file
+            for pair in pairs_list:
+                file.write(f"{pair[0]}\tT: {pair[1]}\n")  # Separating pairs with a tab
+
+        print(f"Dialogue pairs written to {file_path} successfully.")
+
+    except Exception as e:
+        print(f"Error writing dialogue pairs to file: {e}")
