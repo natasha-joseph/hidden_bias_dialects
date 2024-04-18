@@ -14,6 +14,7 @@ from transformers import (
 )
 
 import prompting
+
 random.seed(383)
 
 # Define path to attribute lists
@@ -187,28 +188,28 @@ def dialogue_loss_function(aae_info, sae_info):
     prob_ratio_d = sae_logits_d_tensor / aae_logits_d_tensor
     prob_ratio_nd = aae_logits_nd_tensor / sae_logits_nd_tensor
 
+    # Calculate the semantic similarity between the sentences
+
+    # Calculate the perplexity of the generated sentences
+
     # Calculate the combined loss
     combined_loss = - (torch.log(prob_ratio_d).mean() + torch.log(prob_ratio_nd).mean())
     
     # Calculate the mean of the combined loss
     return combined_loss
 
-def write_dialogue_pairs_to_file(pairs_list, file_path):
+def append_dialogue_pairs_to_file(pair, file_path):
     """
-    Write a list of dialogue pairs to a file with pairs separated by tabs on the same line.
+    Append a list of dialogue pairs to a file with pairs separated by tabs on the same line.
 
     Args:
         pairs_list (list): A list of dialogue pairs.
         file_path (str): The path to the file where the dialogue pairs will be written.
     """
     try:
-        # Open the file in write mode
-        with open(file_path, 'w') as file:
-            # Write each dialogue pair to the file
-            for pair in pairs_list:
-                file.write(f"{pair[0]}\tT: {pair[1]}\n")  # Separating pairs with a tab
-
-        print(f"Dialogue pairs written to {file_path} successfully.")
+        # Open the file in append mode
+        with open(file_path, 'a') as file:
+          file.write(f"{pair[0]}\t{pair[1]}\n")  # Separating pairs with a tab
 
     except Exception as e:
-        print(f"Error writing dialogue pairs to file: {e}")
+        print(f"Error appending dialogue pairs to file: {e}")

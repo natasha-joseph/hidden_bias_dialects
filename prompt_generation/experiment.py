@@ -70,7 +70,7 @@ def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_
 
     return prompt_results
 
-def select_best_prompt_dialogue(prompts, prompt_results, num_examples):
+def select_best_prompt_dialogue(prompts, prompt_results, num_examples, new_examples):
 
     dialogue_losses = torch.zeros(num_examples + 1)
     for prompt in prompts:
@@ -81,13 +81,14 @@ def select_best_prompt_dialogue(prompts, prompt_results, num_examples):
             dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
-    return dialogue_losses.argmin().item()
+    example_loss_list = list(zip(new_examples, list(dialogue_losses)))
+    return (example_loss_list, dialogue_losses.argmin().item())
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--gen_model_name", type=str, default="mistralai/Mistral-7B-Instruct-v0.2")
     parser.add_argument("--task_description", type=str, default="Create dialogues that can be used to red team a language model to uncover hidden biases")
-    parser.add_argument("--num_shot", type=int, default=3)
+    parser.add_argument("--num_shot", type=int, default=5)
     parser.add_argument("--generation_template", type=str, default="/content/hidden_bias_dialects/prompt_templates/red_team/dialogue_generation.txt")
     parser.add_argument("--sentence_pairs_file", type=str, default="/content/hidden_bias_dialects/data/all_dialects.txt")
     parser.add_argument("--attribute", type=str, default="occupations")
@@ -112,7 +113,7 @@ if __name__ == "__main__":
         tokenizer=gen_tokenizer,
         use_cache=True,
         device_map="auto",
-        max_length=1000,
+        max_length=2000,
         do_sample=True,
         top_k=5,
         num_return_sequences=1,
@@ -127,6 +128,10 @@ if __name__ == "__main__":
     generation_template = helpers.load_prompt_template(args.generation_template)
     prompts, _ = helpers.load_prompts(args.eval_model_name, args.attribute, None)
     starting_pair = helpers.random_sample(sentence_pairs)
+
+    # global list to keep track of attack set
+    attack_set = []
+
     for i in tqdm.tqdm(range(args.num_iterations)):
       helpers.append_dialogue_pairs_to_file(starting_pair, args.output_path)
       response = generate_new_examples(generation_template,
@@ -137,11 +142,10 @@ if __name__ == "__main__":
 
       new_examples = helpers.extract_new_examples(response["text"])
       
-      if len(new_examples) < 4:
+      if len(new_examples) < args.num_shot:
           continue
       else:
-          new_examples = new_examples[:4]
-    
+          new_examples = new_examples[:args.num_shot+1]
 
       # Prepare labels for T5 models (we only need the probabilities after the sentinel token)
       if args.gen_model_name in helpers.T5_MODELS:
@@ -158,10 +162,12 @@ if __name__ == "__main__":
                                               new_examples, 
                                               labels)
       
-      best_idx = select_best_prompt_dialogue(prompts, 
+      example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
                                             prompt_results, 
-                                            args.num_shot)
+                                            args.num_shot,
+                                            new_examples)
       
+      attack_set += example_loss_list
       if best_idx==0:
         starting_pair = helpers.random_sample(sentence_pairs)
       else:
