@@ -5,6 +5,7 @@ from langchain import PromptTemplate, LLMChain
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import argparse
 import tqdm
+import pandas as pd
 
 import helpers
 
@@ -81,7 +82,7 @@ def select_best_prompt_dialogue(prompts, prompt_results, num_examples, new_examp
             dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
-    example_loss_list = list(zip(new_examples, list(dialogue_losses)))
+    example_loss_list = set([(example, loss.item()) for example, loss in zip(new_examples, dialogue_losses)])
     return (example_loss_list, dialogue_losses.argmin().item())
 
 def get_args():
@@ -95,6 +96,7 @@ def get_args():
     parser.add_argument("--eval_model_name", type=str, required=True)
     parser.add_argument("--num_iterations", type=int, default=150)
     parser.add_argument("--output_path", type=str, default="attack_set-.txt")
+    parser.add_argument("--set_size", type=int, default=1000)
 
     args = parser.parse_args()
     print(f"args: {vars(args)}")
@@ -130,10 +132,9 @@ if __name__ == "__main__":
     starting_pair = helpers.random_sample(sentence_pairs)
 
     # global list to keep track of attack set
-    attack_set = []
+    attack_set = set()
 
     for i in tqdm.tqdm(range(args.num_iterations)):
-      helpers.append_dialogue_pairs_to_file(starting_pair, args.output_path)
       response = generate_new_examples(generation_template,
                                       args.task_description,
                                       args.num_shot,
@@ -167,8 +168,11 @@ if __name__ == "__main__":
                                             args.num_shot,
                                             new_examples)
       
-      attack_set += example_loss_list
+      attack_set.update(example_loss_list)
       if best_idx==0:
         starting_pair = helpers.random_sample(sentence_pairs)
       else:
         starting_pair = new_examples[best_idx]
+
+    best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
+    helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)

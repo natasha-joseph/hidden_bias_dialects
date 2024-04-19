@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 import re
+import pandas as pd
 from transformers import (
     GPT2LMHeadModel, 
     GPT2Tokenizer, 
@@ -198,18 +199,39 @@ def dialogue_loss_function(aae_info, sae_info):
     # Calculate the mean of the combined loss
     return combined_loss
 
-def append_dialogue_pairs_to_file(pair, file_path):
+def append_dialogue_pairs_to_file(pairs_list, file_path):
     """
     Append a list of dialogue pairs to a file with pairs separated by tabs on the same line.
 
     Args:
-        pairs_list (list): A list of dialogue pairs.
+        pairs_list (list): A list of dialogue pairs, where each pair is a tuple containing two strings.
         file_path (str): The path to the file where the dialogue pairs will be written.
     """
     try:
         # Open the file in append mode
         with open(file_path, 'a') as file:
-          file.write(f"{pair[0]}\t{pair[1]}\n")  # Separating pairs with a tab
+            # Write each dialogue pair to the file
+            for pair in pairs_list:
+                file.write(f"{pair[0]}\t{pair[1]}\n")  # Separating pairs with a tab
 
     except Exception as e:
         print(f"Error appending dialogue pairs to file: {e}")
+
+def get_most_effective_pairs(k, attack_set):
+    df = pd.DataFrame(attack_set, columns=['dialogues', 'bias_loss'])
+    df.drop_duplicates()
+    # Min-max normalization
+    min_value = df['bias_loss'].min()
+    max_value = df['bias_loss'].max()
+
+    # Apply min-max normalization
+    df['normalized_loss'] = -1 + 2 * (df['bias_loss'] - min_value) / (max_value - min_value)
+
+    #df['score'] = df['normalized_loss'] + df['sentence_similarity']
+
+    # Sort the DataFrame by the 'Age' column in descending order
+    df_sorted = df.sort_values(by='normalized_loss', ascending=True)
+    top_k_rows = df_sorted.head(k)
+    print(len(top_k_rows))
+
+    return top_k_rows
