@@ -11,8 +11,14 @@ from transformers import (
     RobertaForMaskedLM, 
     RobertaTokenizer, 
     T5ForConditionalGeneration,
-    T5Tokenizer
+    T5Tokenizer,
+    BertTokenizer, 
+    BertModel
 )
+
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+from torch import nn
 
 import prompting
 
@@ -235,3 +241,47 @@ def get_most_effective_pairs(k, attack_set):
     print(len(top_k_rows))
 
     return top_k_rows
+
+# Function to normalize a column
+def normalize_column(df, col_name):
+
+    # Min-max normalization
+    min_value = df['loss'].min()
+    max_value = df['loss'].max()
+
+    # Apply min-max normalization
+    df['loss'] = -1 + 2 * (df['loss'] - min_value) / (max_value - min_value)
+
+    #df['score'] = df['normalized_loss'] + df['sentence_similarity']
+
+# Calculates cosine simlarity between two sentence embeddings
+def cosine_similarity(sentence_embedding_1, sentence_embedding_2, debug = False):
+  cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+  similarity = cos(sentence_embedding_1, sentence_embedding_2)
+  if debug: print(f"Similarity between the two sentences: {similarity.item()}")
+
+  return similarity.item()
+
+# Computes the similarity score between two sentences
+def similarity_score(sentence_1, sentence_2, debug = False):
+  tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+  model = BertModel.from_pretrained('bert-base-uncased')
+
+  # Tokenize the sentences
+  tokens_1 = tokenizer.encode_plus(sentence_1, return_tensors='pt', padding=True)
+  tokens_2 = tokenizer.encode_plus(sentence_2, return_tensors='pt', padding=True)
+
+  # Obtain BERT embeddings
+  with torch.no_grad():
+      outputs_1 = model(**tokens_1)
+      outputs_2 = model(**tokens_2)
+
+  # Compute the mean of the token embeddings
+  sentence_embedding_1 = torch.mean(outputs_1.last_hidden_state, dim=1)
+  sentence_embedding_2 = torch.mean(outputs_2.last_hidden_state, dim=1)
+
+  similarity = -cosine_similarity(sentence_embedding_1, sentence_embedding_2, debug)
+
+  if debug: print(f"Similarity between sentences: {similarity:.4f}")
+
+  return similarity

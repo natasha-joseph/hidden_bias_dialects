@@ -6,6 +6,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import argparse
 import tqdm
 import pandas as pd
+import random
+import time
 
 import helpers
 
@@ -82,7 +84,7 @@ def select_best_prompt_dialogue(prompts, prompt_results, num_examples, new_examp
             dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
-    example_loss_list = set([(example, loss.item()) for example, loss in zip(new_examples, dialogue_losses)])
+    example_loss_list = [(example, loss.item()) for example, loss in zip(new_examples, dialogue_losses)]
     return (example_loss_list, dialogue_losses.argmin().item())
 
 def get_args():
@@ -129,12 +131,18 @@ if __name__ == "__main__":
     sentence_pairs = helpers.load_sentence_pairs(args.sentence_pairs_file)
     generation_template = helpers.load_prompt_template(args.generation_template)
     prompts, _ = helpers.load_prompts(args.eval_model_name, args.attribute, None)
-    starting_pair = helpers.random_sample(sentence_pairs)
 
     # global list to keep track of attack set
     attack_set = set()
+    attack_df = pd.read_csv("/content/hidden_bias_dialects/data/test_sentence_pair_losses_sen_sim.csv", index_col = 0)
+    attack_df.sort_values(by = ["loss"], inplace = True)
+    
+    used_pairs = dict()
+    starting_pair = attack_df.iloc[0]["pairs"]
+    used_pairs[starting_pair] = 1
 
     for i in tqdm.tqdm(range(args.num_iterations)):
+
       response = generate_new_examples(generation_template,
                                       args.task_description,
                                       args.num_shot,
@@ -162,17 +170,35 @@ if __name__ == "__main__":
                                               prompts, 
                                               new_examples, 
                                               labels)
+
       
       example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
                                             prompt_results, 
                                             args.num_shot,
                                             new_examples)
-      
-      attack_set.update(example_loss_list)
-      if best_idx==0:
-        starting_pair = helpers.random_sample(sentence_pairs)
-      else:
-        starting_pair = new_examples[best_idx]
+
+      # If the starting pair does not have the best loss, pick the sentence pair with the lowest loss and append it to the attack_df
+      if best_idx != 0:
+        best_pairs = example_loss_list[best_idx][0]
+        sen_sim_for_best_pairs = helpers.similarity_score(best_pairs[0], best_pairs[1])
+        attack_df.loc[len(attack_df)] = {"pairs": best_pairs, "loss": example_loss_list[best_idx][1], "sen_sim": sen_sim_for_best_pairs}
+
+      # normalize the loss TODO: clip the losses
+      helpers.normalize_column(attack_df, "loss")
+
+      # add the sentence similarity losses
+      attack_df["score"] = attack_df["loss"] + attack_df["sen_sim"]
+
+      # Sort the df by loss again, get the sentence pair with the lowest loss, if it is used, get the next lowest unused pair
+      attack_df.sort_values(by = ["score"], ascending = True, inplace = True)
+      starting_pair = attack_df.iloc[0]["pairs"]
+      if starting_pair in used_pairs:
+        for next_idx in range(1, len(attack_df)):
+          if attack_df.iloc[next_idx]["pairs"] not in used_pairs:
+            starting_pair = attack_df.iloc[next_idx]["pairs"]
+            break
+
+      used_pairs[starting_pair] = 1
 
     best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
     helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)
