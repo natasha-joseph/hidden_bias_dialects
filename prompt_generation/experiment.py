@@ -182,7 +182,7 @@ if __name__ == "__main__":
 
       temp_df = pd.DataFrame(columns = ["pairs", "loss", "sen_sim"])
 
-      for gen_pairs_idx in range(len(example_loss_list)):
+      for gen_pairs_idx in range(1, len(example_loss_list)):
         gen_pair = example_loss_list[gen_pairs_idx][0]
         sen_sim_for_gen_pair = helpers.similarity_score(gen_pair[0], gen_pair[1])
         temp_df.loc[len(temp_df)] = {"pairs": gen_pair, "loss": example_loss_list[gen_pairs_idx][1], "sen_sim": sen_sim_for_gen_pair}
@@ -194,13 +194,12 @@ if __name__ == "__main__":
 
       # If the starting pair does not have the best loss, pick the sentence pair with the lowest loss and append it to the attack_df
       if temp_df.iloc[0]["pairs"] != example_loss_list[0][0]:
-        print(temp_df.iloc[0]["pairs"])
-        print(example_loss_list[0][0])
         best_pairs = temp_df.iloc[0][0]
         sen_sim_for_best_pairs = helpers.similarity_score(best_pairs[0], best_pairs[1])
         attack_df.loc[len(attack_df)] = {"pairs": best_pairs, "loss": temp_df.iloc[0]["loss"], "sen_sim": temp_df.iloc[0]["sen_sim"]}
         best_generated_df.loc[len(best_generated_df)] = {"pairs": best_pairs, "loss": example_loss_list[best_idx][1], "sen_sim": sen_sim_for_best_pairs}
 
+      generated_df = pd.concat([generated_df, temp_df])
 
       # normalize the loss TODO: clip the losses
       helpers.normalize_column(attack_df, "loss")
@@ -217,7 +216,6 @@ if __name__ == "__main__":
             starting_pair = attack_df.iloc[next_idx]["pairs"]
             break
 
-      print(used_pairs)
       used_pairs[starting_pair] = 1
 
     # best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
