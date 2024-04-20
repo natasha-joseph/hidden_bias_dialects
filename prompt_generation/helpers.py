@@ -250,7 +250,7 @@ def normalize_column(df, col_name):
     max_value = df['loss'].max()
 
     # Apply min-max normalization
-    df['loss'] = -1 + 2 * (df['loss'] - min_value) / (max_value - min_value)
+    df['normalized_loss'] = -1 + 2 * (df['loss'] - min_value) / (max_value - min_value)
 
     #df['score'] = df['normalized_loss'] + df['sentence_similarity']
 

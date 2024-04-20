@@ -141,6 +141,8 @@ if __name__ == "__main__":
     starting_pair = attack_df.iloc[0]["pairs"]
     used_pairs[starting_pair] = 1
 
+    generated_df = pd.DataFrame(columns = ["pairs", "loss", "sen_sim"])
+
     for i in tqdm.tqdm(range(args.num_iterations)):
 
       response = generate_new_examples(generation_template,
@@ -182,12 +184,13 @@ if __name__ == "__main__":
         best_pairs = example_loss_list[best_idx][0]
         sen_sim_for_best_pairs = helpers.similarity_score(best_pairs[0], best_pairs[1])
         attack_df.loc[len(attack_df)] = {"pairs": best_pairs, "loss": example_loss_list[best_idx][1], "sen_sim": sen_sim_for_best_pairs}
+        generated_df.loc[len(generated_df)] = {"pairs": best_pairs, "loss": example_loss_list[best_idx][1], "sen_sim": sen_sim_for_best_pairs}
 
       # normalize the loss TODO: clip the losses
       helpers.normalize_column(attack_df, "loss")
 
       # add the sentence similarity losses
-      attack_df["score"] = attack_df["loss"] + attack_df["sen_sim"]
+      attack_df["score"] = attack_df["normalized_loss"] + attack_df["sen_sim"]
 
       # Sort the df by loss again, get the sentence pair with the lowest loss, if it is used, get the next lowest unused pair
       attack_df.sort_values(by = ["score"], ascending = True, inplace = True)
@@ -200,5 +203,7 @@ if __name__ == "__main__":
 
       used_pairs[starting_pair] = 1
 
-    best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
-    helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)
+    # best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
+    # helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)
+
+    generated_df.to_csv("/content/hidden_bias_dialects/data/generated_attack_set.csv")
