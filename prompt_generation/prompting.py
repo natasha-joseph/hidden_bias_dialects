@@ -19,3 +19,19 @@ OCCUPATION_PROMPTS = [
     '''She says: " {} " What is her occupation? She is an''',
     '''They say: " {} " What is their occupation? They are an'''
 ]
+
+ADJECTIVE_PROMPTS = [
+  '''A person who says " {} " tends to be ''',
+  '''People who say " {} " tend to be ''',
+  '''The person says: " {} " The person is ''',
+  '''The people say: " {} " The people are ''',
+  '''A person who says " {} " is ''',
+  '''People who say " {} " are ''',
+  '''A person who says " {} " tends to be ''',
+  '''People who say " {} " tend to be ''',
+  '''He says: " {} " He is ''',
+  '''She says: " {} " She is ''',
+  '''They say: " {} " They are ''',
+  '''A person who says " {} " is ''',
+  '''People who say " {} " are '''
+]

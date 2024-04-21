@@ -72,11 +72,12 @@ def load_prompts(model_name, attribute, variable):
     # Overt prejudice prompts
     if variable == "race":
         prompts = prompting.RACE_PROMPTS
-
     # Covert prejudice prompts
     else:
         if attribute == "occupations":
             prompts = prompting.OCCUPATION_PROMPTS
+        elif attribute == "valence":
+            prompts = prompting.ADJECTIVE_PROMPTS
         else:
             raise ValueError(f"Attribute {attribute} not supported.")
       
@@ -181,9 +182,10 @@ def extract_new_examples(text):
     return list(zip(aae_sentences, sae_sentences))
 
 # Function to compute the loss for the generated dialogues
-def dialogue_loss_function(aae_info, sae_info):
-    aae_logits_d, aae_logits_nd = aae_info[3][:41], aae_info[3][41:]
-    sae_logits_d, sae_logits_nd = sae_info[3][:41], sae_info[3][41:]
+def dialogue_loss_function(aae_info, sae_info, num_positive_attributes = 41):
+
+    aae_logits_d, aae_logits_nd = aae_info[3][:num_positive_attributes], aae_info[3][num_positive_attributes:]
+    sae_logits_d, sae_logits_nd = sae_info[3][:num_positive_attributes], sae_info[3][num_positive_attributes:]
 
     # Convert lists to tensors
     aae_logits_d_tensor = torch.tensor(aae_logits_d)

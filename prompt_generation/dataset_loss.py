@@ -54,14 +54,14 @@ def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_
 
     return prompt_results
 
-def get_losses(prompts, prompt_results, sentence_pairs):
+def get_losses(prompts, prompt_results, sentence_pairs, num_positive_attributes = 41):
   
     dialogue_losses = torch.zeros(len(sentence_pairs))
     for prompt in tqdm.tqdm(prompts):
         results = prompt_results[prompt]
         for i in range(0, len(results), 2):
             aae_logits, sae_logits = results[i], results[i+1]
-            loss = helpers.dialogue_loss_function(aae_logits, sae_logits)
+            loss = helpers.dialogue_loss_function(aae_logits, sae_logits, num_positive_attributes)
             dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
@@ -71,7 +71,7 @@ def get_losses(prompts, prompt_results, sentence_pairs):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--gen_model_name", type=str, default="mistralai/Mistral-7B-Instruct-v0.2")
-    parser.add_argument("--sentence_pairs_file", type=str, default="/content/hidden_bias_dialects/data/test_all_dialects.txt")
+    parser.add_argument("--sentence_pairs_file", type=str, default="/content/hidden_bias_dialects/data/all_dialects.txt")
     parser.add_argument("--attribute", type=str, default="occupations")
     parser.add_argument("--eval_model_name", type=str, required=True)
     parser.add_argument("--output_path", type=str, default="attack_set-.txt")
@@ -110,10 +110,13 @@ if __name__ == "__main__":
                                             labels)
 
 
-    losses = get_losses(prompts, prompt_results, sentence_pairs)
-
+    if args.attribute == "occupations":
+      losses = get_losses(prompts, prompt_results, sentence_pairs, 41)
+    elif args.attribute == "valence":
+      losses = get_losses(prompts, prompt_results, sentence_pairs, 280)
+    
     loss_df = pd.DataFrame(losses, columns = ['pairs', 'loss'])
     loss_df.sort_values(by = ['loss'])
-    loss_df.to_csv("/content/hidden_bias_dialects/data/test_sentence_pair_losses.csv")
+    loss_df.to_csv("/content/hidden_bias_dialects/data/valence_sentence_pair_losses.csv")
 
 

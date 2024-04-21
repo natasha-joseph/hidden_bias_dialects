@@ -73,14 +73,14 @@ def evaluate_new_dialogues(model, model_name, tok, attribute, prompts, dialogue_
 
     return prompt_results
 
-def select_best_prompt_dialogue(prompts, prompt_results, num_examples, new_examples):
+def select_best_prompt_dialogue(prompts, prompt_results, num_examples, new_examples, num_positive_attributes = 41):
 
     dialogue_losses = torch.zeros(num_examples + 1)
     for prompt in prompts:
         results = prompt_results[prompt]
         for i in range(0, len(results), 2):
             aae_logits, sae_logits = results[i], results[i+1]
-            loss = helpers.dialogue_loss_function(aae_logits, sae_logits)
+            loss = helpers.dialogue_loss_function(aae_logits, sae_logits, num_positive_attributes)
             dialogue_losses[i // 2] += loss
     dialogue_losses /= len(prompts)
 
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     # global list to keep track of attack set
     attack_set = set()
-    attack_df = pd.read_csv("/content/hidden_bias_dialects/data/test_sentence_pair_losses_sen_sim.csv", index_col = 0)
+    attack_df = pd.read_csv("/content/hidden_bias_dialects/data/valence_sentence_pair_sen_sim_losses.csv", index_col = 0)
     attack_df.sort_values(by = ["loss"], inplace = True)
     
     used_pairs = dict()
@@ -174,11 +174,18 @@ if __name__ == "__main__":
                                               new_examples, 
                                               labels)
 
-      
-      example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
-                                            prompt_results, 
-                                            args.num_shot,
-                                            new_examples)
+      if args.attribute == "occupation":
+          example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
+                                                prompt_results, 
+                                                args.num_shot,
+                                                new_examples,
+                                                41)
+      elif args.attribute == "valence":
+          example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
+                                                prompt_results, 
+                                                args.num_shot,
+                                                new_examples,
+                                                280)
 
       temp_df = pd.DataFrame(columns = ["pairs", "loss", "sen_sim"])
 
@@ -221,4 +228,4 @@ if __name__ == "__main__":
     # best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
     # helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)
 
-    generated_df.to_csv("/content/hidden_bias_dialects/data/t5_large_generated_attack_set.csv")
+    generated_df.to_csv(f"/content/hidden_bias_dialects/data/{args.eval_model_name}_generated_attack_set_{args.attribute}.csv")
