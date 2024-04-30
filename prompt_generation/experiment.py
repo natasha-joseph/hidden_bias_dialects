@@ -92,7 +92,7 @@ def get_args():
     parser.add_argument("--gen_model_name", type=str, default="mistralai/Mistral-7B-Instruct-v0.2")
     parser.add_argument("--task_description", type=str, default="Create dialogues that can be used to red team a language model to uncover hidden biases")
     parser.add_argument("--num_shot", type=int, default=5)
-    parser.add_argument("--generation_template", type=str, default="/content/hidden_bias_dialects/prompt_templates/red_team/dialogue_generation.txt")
+    parser.add_argument("--generation_template", type=str, default="/content/hidden_bias_dialects/prompt_templates/red_team/dialogue_generation_southern_sae.txt")
     parser.add_argument("--sentence_pairs_file", type=str, default="/content/hidden_bias_dialects/data/all_dialects.txt")
     parser.add_argument("--attribute", type=str, default="occupations")
     parser.add_argument("--eval_model_name", type=str, required=True)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     # global list to keep track of attack set
     attack_set = set()
-    attack_df = pd.read_csv("/content/hidden_bias_dialects/data/valence_sentence_pair_sen_sim_losses.csv", index_col = 0)
+    attack_df = pd.read_csv("/content/hidden_bias_dialects/data/sae_southern_sentence_pair_losses_sen_sim.csv", index_col = 0)
     attack_df.sort_values(by = ["loss"], inplace = True)
     
     used_pairs = dict()
@@ -159,6 +159,8 @@ if __name__ == "__main__":
       else:
           new_examples = new_examples[:args.num_shot+1]
 
+      # print(new_examples)
+
       # Prepare labels for T5 models (we only need the probabilities after the sentinel token)
       if args.gen_model_name in helpers.T5_MODELS:
           labels = torch.tensor([eval_tokenizer.encode("<extra_id_0>")])
@@ -174,7 +176,7 @@ if __name__ == "__main__":
                                               new_examples, 
                                               labels)
 
-      if args.attribute == "occupation":
+      if args.attribute == "occupations":
           example_loss_list, best_idx = select_best_prompt_dialogue(prompts, 
                                                 prompt_results, 
                                                 args.num_shot,
@@ -228,4 +230,4 @@ if __name__ == "__main__":
     # best_attack_set = helpers.get_most_effective_pairs(args.set_size, attack_set)
     # helpers.append_dialogue_pairs_to_file(list(best_attack_set['dialogues']), args.output_path)
 
-    generated_df.to_csv(f"/content/hidden_bias_dialects/data/{args.eval_model_name}_generated_attack_set_{args.attribute}.csv")
+    generated_df.to_csv(f"/content/hidden_bias_dialects/data/{args.eval_model_name}_sae_generated_attack_set_{args.attribute}.csv")

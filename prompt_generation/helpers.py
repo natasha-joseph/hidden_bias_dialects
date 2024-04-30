@@ -119,7 +119,10 @@ def random_sample(input_list):
 
     return sampled_element
 
-def format_example(pair_tuple):
+def format_example(pair_tuple, dialect = ""):
+
+    if dialect == "southern":
+      return f"Southern: {pair_tuple[1]}\tSAE: {pair_tuple[0]}" 
     return f"AAE: {pair_tuple[0]}\tSAE: {pair_tuple[1]}"
 
 # Function to load attributes

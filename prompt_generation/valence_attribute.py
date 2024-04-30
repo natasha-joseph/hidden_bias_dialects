@@ -1,12 +1,13 @@
 import nltk
 from nltk import pos_tag
-from transformers import T5Tokenizer
+from transformers import T5Tokenizer, GPT2Tokenizer
 
 # Download NLTK resources
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 
-tok = T5Tokenizer.from_pretrained("t5-small")
+# tok = T5Tokenizer.from_pretrained("t5-small")
+tok = GPT2Tokenizer.from_pretrained("gpt2-large")
 
 def get_adjectives(lis):
   adjs = []
@@ -48,7 +49,7 @@ if __name__ == "__main__":
   high_valence_one_token = [i for i in high_valence_adjs if len(tok.tokenize(" " + i)) == 1]
   low_valence_one_token = [i for i in low_valence_adjs if len(tok.tokenize(" " + i)) == 1]
 
-  with open('/content/hidden_bias_dialects/data/attributes/valence.txt', 'w') as f3:
+  with open('/content/hidden_bias_dialects/data/attributes/valence_gpt2.txt', 'w') as f3:
     for i in high_valence_one_token:
       f3.write(i + '\n')
     for i in low_valence_one_token:

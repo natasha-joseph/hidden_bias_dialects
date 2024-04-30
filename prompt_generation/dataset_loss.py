@@ -89,7 +89,9 @@ if __name__ == "__main__":
 
     # load in the sentence pairs and the prompt template for generation
     sentence_pairs = helpers.load_sentence_pairs(args.sentence_pairs_file)
-    sentence_pairs = [sentence_pair[:2] for sentence_pair in sentence_pairs]
+
+    # Change this to change the pairs being considered
+    sentence_pairs = [sentence_pair[1:3] for sentence_pair in sentence_pairs]
 
     prompts, _ = helpers.load_prompts(args.eval_model_name, args.attribute, None)
 
@@ -117,6 +119,6 @@ if __name__ == "__main__":
     
     loss_df = pd.DataFrame(losses, columns = ['pairs', 'loss'])
     loss_df.sort_values(by = ['loss'])
-    loss_df.to_csv("/content/hidden_bias_dialects/data/valence_sentence_pair_losses.csv")
+    loss_df.to_csv("/content/hidden_bias_dialects/data/sae_southern_sentence_pair_losses.csv")
 
 
